@@ -7,6 +7,8 @@ from PyPDF2 import PdfReader, PdfWriter
 import io
 import os
 import time
+import math
+import streamlit.components.v1 as components
 
 # Optional: better preview
 try:
@@ -82,7 +84,9 @@ if uploaded_file is not None:
     )
 
     if st.button("🔓 Remove Password", type="primary", use_container_width=True, disabled=not password.strip()):
-        with st.status("Processing PDF...", expanded=True) as status:
+        processing_container = st.container()
+        with st.spinner("Processing PDF... Please wait"):
+            start_time = time.time()
             try:
                 # ─── Read file ────────────────────────────────
                 pdf_bytes = uploaded_file.getvalue()
@@ -90,43 +94,45 @@ if uploaded_file is not None:
 
                 reader = PdfReader(pdf_stream)
 
-                status.update(label="Checking encryption...", state="running")
+                processing_container.info("Checking encryption & metadata...")
 
                 if not reader.is_encrypted:
-                    status.update(
-                        label="This PDF is not password protected.",
-                        state="complete"
-                    )
+                    processing_container.success("This PDF is not password protected.")
                     st.info("No password was detected. You can download the file as-is.")
                 else:
-                    status.update(label="Trying to decrypt...", state="running")
+                    processing_container.info("Attempting to decrypt with provided password...")
 
                     decrypt_result = reader.decrypt(password)
 
                     if decrypt_result == 0:
-                        status.update(label="Wrong password", state="error")
-                        st.error("Decryption failed → incorrect password.")
+                        processing_container.error("Decryption failed — incorrect password.")
                         st.stop()
 
                     status_text = {
-                        1: "User password accepted (some restrictions may remain)",
+                        1: "User password accepted (restrictions may remain)",
                         2: "Owner/full password accepted → complete unlock"
-                    }.get(decrypt_result, "Decrypted (unknown result code)")
+                    }.get(decrypt_result, "Decrypted")
 
-                    status.update(label=status_text, state="running")
+                    processing_container.success(status_text)
 
-                # ─── Create clean PDF ─────────────────────────
-                status.update(label="Creating unprotected version...", state="running")
+                # ─── Create clean PDF with animated progress ──
+                processing_container.info("Creating unprotected version...")
 
                 writer = PdfWriter()
 
+                total_pages = max(1, len(reader.pages))
+                progress = st.progress(0)
+                progress_text = st.empty()
+
                 for i, page in enumerate(reader.pages, 1):
                     writer.add_page(page)
+                    percent = math.floor(i / total_pages * 100)
+                    progress.progress(percent)
+                    progress_text.markdown(f"Adding page {i} of {total_pages} — {percent}%")
 
-                # Try to keep original metadata
                 try:
                     writer.add_metadata(reader.metadata or {})
-                except:
+                except Exception:
                     pass
 
                 # Write to memory
@@ -134,15 +140,29 @@ if uploaded_file is not None:
                 writer.write(output)
                 output.seek(0)
 
-                status.update(label="Done!", state="complete")
+                end_time = time.time()
+                elapsed = end_time - start_time
 
-                # ─── Filename logic ────────────────────────────
+                progress.progress(100)
+                progress_text.success("PDF creation complete")
+
+                # ─── Filename logic & stats ───────────────────
                 base, ext = os.path.splitext(uploaded_file.name)
                 new_name = f"{base} - unlocked{ext}"
 
-                # ─── Download button ───────────────────────────
+                orig_mb = uploaded_file.size / 1_048_576
+                out_mb = len(output.getvalue()) / 1_048_576
+                pages = total_pages
+
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Pages", str(pages))
+                c2.metric("Time", f"{elapsed:.1f}s")
+                c3.metric("Original size", f"{orig_mb:.1f} MB")
+                c4.metric("Unlocked size", f"{out_mb:.1f} MB")
+
+                # ─── Download button ─────────────────────────
                 st.download_button(
-                    label=f"⬇️ Download unlocked PDF ({file_size_mb:.1f} MB)",
+                    label=f"⬇️ Download unlocked PDF ({out_mb:.1f} MB)",
                     data=output,
                     file_name=new_name,
                     mime="application/pdf",
@@ -156,17 +176,59 @@ if uploaded_file is not None:
                         st.markdown("**First page preview**")
                         doc = fitz.open(stream=output.getvalue(), filetype="pdf")
                         if len(doc) >= 1:
-                            pix = doc[0].get_pixmap(dpi=90)
+                            pix = doc[0].get_pixmap(dpi=120)
                             st.image(pix.tobytes("png"), use_column_width=True)
                         doc.close()
-                    except Exception as e:
+                    except Exception:
                         st.caption("Preview could not be generated.")
                 else:
                     st.caption("Install PyMuPDF (`pip install pymupdf`) to see preview")
 
+                # ─── Fun completion animation ────────────────
+                animation_html = """
+                <div style='display:flex;flex-direction:column;align-items:center'>
+                  <style>
+                  .unlock {{
+                    width:120px;height:120px;display:flex;align-items:center;justify-content:center;
+                    margin:12px;
+                  }}
+                  .lock-body {{
+                    width:72px;height:58px;background:#0ea5a4;border-radius:6px;position:relative;box-shadow:0 6px 18px rgba(0,0,0,0.12);
+                  }}
+                  .shackle {{
+                    width:56px;height:56px;border:8px solid #0ea5a4;border-bottom:0;border-radius:36px;position:absolute;top:-46px;left:8px;transform-origin:center;
+                    transform: rotate(0deg);
+                    transition: transform 0.8s cubic-bezier(.2,.8,.2,1);
+                  }}
+                  .shackle.open {{ transform: rotate(-45deg) translate(-6px,-6px); }
+                  .confetti {{position:relative;margin-top:6px;width:220px;height:40px;}}
+                  .dot{width:8px;height:8px;border-radius:50%;position:absolute;opacity:0;animation:pop 1s ease forwards}
+                  .dot:nth-child(1){left:10px;background:#ef4444;animation-delay:.0s}
+                  .dot:nth-child(2){left:40px;background:#f59e0b;animation-delay:.05s}
+                  .dot:nth-child(3){left:70px;background:#eab308;animation-delay:.1s}
+                  .dot:nth-child(4){left:100px;background:#10b981;animation-delay:.15s}
+                  .dot:nth-child(5){left:130px;background:#3b82f6;animation-delay:.2s}
+                  .dot:nth-child(6){left:160px;background:#8b5cf6;animation-delay:.25s}
+                  @keyframes pop{0%{transform:translateY(0) scale(.2);opacity:0}50%{opacity:1}100%{transform:translateY(-28px) scale(1);opacity:1}}
+                  </style>
+                  <div class='unlock'>
+                    <div class='lock-body'></div>
+                    <div id='sh' class='shackle'></div>
+                  </div>
+                  <div class='confetti'>
+                    <div class='dot'></div><div class='dot'></div><div class='dot'></div><div class='dot'></div><div class='dot'></div><div class='dot'></div>
+                  </div>
+                </div>
+                <script>
+                  const sh = document.getElementById('sh');
+                  setTimeout(()=>{ sh.classList.add('open') }, 700);
+                </script>
+                """
+
+                components.html(animation_html, height=220)
+
             except Exception as e:
-                status.update(label="Error occurred", state="error")
-                st.error("Could not process this PDF file.")
+                processing_container.error("Could not process this PDF file.")
                 with st.expander("Error details"):
                     st.exception(e)
 
