@@ -2,8 +2,8 @@ name: Daily Repo Status Report
 
 on:
   schedule:
-    - cron: '0 7 * * *'   # 7:00 UTC = adjust as needed
-  workflow_dispatch:      # allows manual trigger
+    - cron: '0 7 * * *'     # 7:00 UTC → change if you want different time
+  workflow_dispatch:        # allows manual trigger from Actions tab
 
 permissions:
   issues: write
@@ -19,23 +19,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Simple bash + jq example (or use Python/Node script)
-          yesterday=$(date -d "yesterday" +%Y-%m-%d)
+          yesterday=$(date -d "yesterday" '+%Y-%m-%d')
 
-          echo "# Daily Repo Status - $(date +%Y-%m-%d)" > report.md
-          echo "" >> report.md
+          {
+            echo "# Daily Repo Status - $(date '+%Y-%m-%d')"
+            echo ""
+            echo "## Recent Activity (since $yesterday)"
+            echo '```'
+            gh issue list --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state || echo "No issues updated"
+            echo '```'
+            echo '```'
+            gh pr list   --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state || echo "No pull requests updated"
+            echo '```'
 
-          echo "## Recent Activity (since $yesterday)" >> report.md
-          gh issue list --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state >> report.md || true
-          gh pr list   --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state >> report.md || true
+            echo "## New Commits"
+            git log --since="$yesterday" --pretty=format:"* %h %s (%an)" || echo "No new commits today"
 
-          echo "## New Commits" >> report.md
-          git log --since="$yesterday" --pretty=format:"* %h %s (%an)" >> report.md || true
+            # You can easily add more sections later, examples:
+            # echo "## Releases"
+            # gh release list --limit 5
 
-          # Add more sections: releases, dependabot, etc.
+          } > report.md
 
-      - name: Create issue with report
-        uses: peter-evans/create-or-update-comment@v4
-        with:
-          issue-number: 42   # or create new issue every day
-          body-file: report.md
+      - name: Create new daily issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TODAY=$(date '+%Y-%m-%d')
+
+          gh issue create \
+            --title "Daily Repo Status - $TODAY" \
+            --body-file report.md \
+            --label "daily-report" \
+            --label "automation" \
+            --assignee ${{ github.actor }}          # assigns to person who created workflow (usually you)
