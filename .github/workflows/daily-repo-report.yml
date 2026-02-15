@@ -1,0 +1,41 @@
+name: Daily Repo Status Report
+
+on:
+  schedule:
+    - cron: '0 7 * * *'   # 7:00 UTC = adjust as needed
+  workflow_dispatch:      # allows manual trigger
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate daily report
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Simple bash + jq example (or use Python/Node script)
+          yesterday=$(date -d "yesterday" +%Y-%m-%d)
+
+          echo "# Daily Repo Status - $(date +%Y-%m-%d)" > report.md
+          echo "" >> report.md
+
+          echo "## Recent Activity (since $yesterday)" >> report.md
+          gh issue list --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state >> report.md || true
+          gh pr list   --state all --search "updated:>$yesterday" --limit 20 --json number,title,url,state >> report.md || true
+
+          echo "## New Commits" >> report.md
+          git log --since="$yesterday" --pretty=format:"* %h %s (%an)" >> report.md || true
+
+          # Add more sections: releases, dependabot, etc.
+
+      - name: Create issue with report
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: 42   # or create new issue every day
+          body-file: report.md
