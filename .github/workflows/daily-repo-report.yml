@@ -2,8 +2,8 @@ name: Daily Repo Status Report
 
 on:
   schedule:
-    - cron: '0 7 * * *'     # 7:00 UTC → change if you want different time
-  workflow_dispatch:        # allows manual trigger from Actions tab
+    - cron: '0 7 * * *'     # 7:00 UTC → adjust if needed
+  workflow_dispatch:        # manual trigger
 
 permissions:
   issues: write
@@ -34,12 +34,14 @@ jobs:
 
             echo "## New Commits"
             git log --since="$yesterday" --pretty=format:"* %h %s (%an)" || echo "No new commits today"
-
-            # You can easily add more sections later, examples:
-            # echo "## Releases"
-            # gh release list --limit 5
-
           } > report.md
+
+      - name: Ensure required labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "daily-report" --color "d4c5f9" --description "Automated daily repository status" --force || true
+          gh label create "automation"  --color "c2e0c6" --description "Workflow-generated content"     --force || true
 
       - name: Create new daily issue
         env:
@@ -52,4 +54,4 @@ jobs:
             --body-file report.md \
             --label "daily-report" \
             --label "automation" \
-            --assignee ${{ github.actor }}          # assigns to person who created workflow (usually you)
+            --assignee SurendraRedd
