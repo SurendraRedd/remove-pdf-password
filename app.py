@@ -49,7 +49,7 @@ with st.sidebar:
     st.markdown("---")
 
     st.markdown("**Recommended install**")
-    st.code("pip install streamlit PyPDF2 pymupdf", language="bash")
+    st.code("pip install streamlit PyPDF2 pymupdf pycryptodome", language="bash")
 
     st.caption("Made with Streamlit • PyPDF2 • (optional) PyMuPDF")
 
@@ -177,7 +177,7 @@ if uploaded_file is not None:
                         doc = fitz.open(stream=output.getvalue(), filetype="pdf")
                         if len(doc) >= 1:
                             pix = doc[0].get_pixmap(dpi=120)
-                            st.image(pix.tobytes("png"), use_column_width=True)
+                            st.image(pix.tobytes("png"), width=700)
                         doc.close()
                     except Exception:
                         st.caption("Preview could not be generated.")
@@ -228,9 +228,18 @@ if uploaded_file is not None:
                 components.html(animation_html, height=220)
 
             except Exception as e:
-                processing_container.error("Could not process this PDF file.")
-                with st.expander("Error details"):
-                    st.exception(e)
+                err_msg = str(e)
+                if "PyCryptodome is required" in err_msg or "PyCryptodome is required for AES algorithm" in err_msg:
+                    processing_container.error("PDF uses AES encryption which requires PyCryptodome.")
+                    with st.expander("Install PyCryptodome"):
+                        st.markdown("Install the dependency and restart the app:")
+                        st.code("pip install pycryptodome", language="bash")
+                    with st.expander("Error details"):
+                        st.exception(e)
+                else:
+                    processing_container.error("Could not process this PDF file.")
+                    with st.expander("Error details"):
+                        st.exception(e)
 
 else:
     st.info("Upload a password-protected PDF file to start.", icon="📄")
