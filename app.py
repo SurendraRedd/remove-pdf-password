@@ -8,6 +8,9 @@ import io
 import os
 import time
 import math
+import re
+import json
+from datetime import datetime
 import streamlit.components.v1 as components
 
 # Optional: better preview
@@ -17,12 +20,63 @@ try:
 except ImportError:
     HAS_FITZM = False
 
+# ──── CONSTANTS ─────────────────────────────────────────────────────────────
+MAX_FILE_SIZE_MB = 150
+WARN_FILE_SIZE_MB = 80
+DEFAULT_DPI = 120
+PREVIEW_WIDTH = 700
+CONTACT_LOG_FILE = "contact_submissions.json"
+
 st.set_page_config(
     page_title="PDF Unlocker",
     page_icon="🔓",
     layout="centered",
     initial_sidebar_state="expanded"
 )
+
+# ──── UTILITY FUNCTIONS ─────────────────────────────────────────────────────
+def validate_email(email: str) -> bool:
+    """Validate email format."""
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+    return re.match(pattern, email) is not None
+
+def save_contact_submission(name: str, email: str, subject: str, message: str) -> bool:
+    """Save contact form submission to JSON file."""
+    try:
+        submission = {
+            "timestamp": datetime.now().isoformat(),
+            "name": name,
+            "email": email,
+            "subject": subject,
+            "message": message
+        }
+        
+        submissions = []
+        if os.path.exists(CONTACT_LOG_FILE):
+            try:
+                with open(CONTACT_LOG_FILE, "r") as f:
+                    submissions = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                submissions = []
+        
+        submissions.append(submission)
+        
+        with open(CONTACT_LOG_FILE, "w") as f:
+            json.dump(submissions, f, indent=2)
+        
+        return True
+    except Exception as e:
+        st.error(f"Error saving submission: {str(e)}")
+        return False
+
+def format_file_size(size_bytes: int) -> float:
+    """Convert bytes to MB with precision."""
+    return size_bytes / 1_048_576
+
+def get_generated_filename(original_name: str) -> str:
+    """Generate clean output filename."""
+    base, ext = os.path.splitext(original_name)
+    return f"{base} - unlocked{ext}"
 
 # ──── TITLE & DESCRIPTION ───────────────────────────────────────────────────
 st.title("🔓 PDF Unlocker")
@@ -53,6 +107,58 @@ with st.sidebar:
 
     st.caption("Made with Streamlit • PyPDF2 • (optional) PyMuPDF")
 
+# ──── HOW TO USE SECTION ────────────────────────────────────────────────────
+with st.expander("📖 How to Use This Tool", expanded=False):
+    st.markdown("""
+    ### Step-by-Step Guide
+    
+    1. **Prepare Your PDF**
+       - Ensure you have the password for the file
+       - Save it to a secure location
+    
+    2. **Upload Your File**
+       - Click "Upload your password-protected PDF"
+       - Select a single PDF file (up to 150 MB recommended)
+    
+    3. **Enter Your Password**
+       - In the password field, enter the correct password
+       - Password is **case-sensitive**
+       - Your password is not stored anywhere
+    
+    4. **Click "Remove Password"**
+       - The app will decrypt the file
+       - Progress bar shows page processing
+       - Processing time depends on file size
+    
+    5. **Download Your File**
+       - Click "Download unlocked PDF"
+       - The file will download as `[filename] - unlocked.pdf`
+    
+    ### 🔒 Security & Privacy
+    - ✅ Files are processed locally in your browser session
+    - ✅ No files are stored on our servers
+    - ✅ All data is deleted after download or page refresh
+    - ✅ Use HTTPS connections for added security
+    
+    ### ⚠️ Important Notes
+    - This tool only removes password restrictions
+    - It **does NOT** unlock copying/printing restrictions (owner passwords)
+    - Very large files (>100 MB) may timeout
+    - Ensure you own the PDF or have permission to decrypt it
+    
+    ### 💡 Tips & Tricks
+    - Have your password ready before uploading
+    - For very large PDFs, try splitting them first
+    - Check file size before uploading (shows in metrics)
+    - Preview feature requires PyMuPDF library
+    
+    ### ❓ Troubleshooting
+    - **"Incorrect password"** → Double-check password (case-sensitive)
+    - **"AES encryption requires PyCryptodome"** → Reinstall dependencies
+    - **Processing timeout** → File is too large, try splitting it
+    - **Preview not showing** → Install PyMuPDF for better support
+    """)
+
 # ──── MAIN AREA ─────────────────────────────────────────────────────────────
 uploaded_file = st.file_uploader(
     "Upload your password-protected PDF",
@@ -62,18 +168,19 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is not None:
-    file_size_mb = uploaded_file.size / 1_048_576  # more accurate than 1024*1024
+    file_size_mb = format_file_size(uploaded_file.size)
 
     # Size feedback
-    if file_size_mb > 150:
-        st.error(f"File is very large ({file_size_mb:.1f} MB) → high risk of timeout or memory error.")
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        st.error(f"❌ File is very large ({file_size_mb:.1f} MB) → high risk of timeout or memory error.")
+        st.info(f"Maximum recommended size: {MAX_FILE_SIZE_MB} MB")
         st.stop()
-    elif file_size_mb > 80:
-        st.warning(f"Large file detected ({file_size_mb:.1f} MB). Processing may be slow.")
+    elif file_size_mb > WARN_FILE_SIZE_MB:
+        st.warning(f"⚠️ Large file detected ({file_size_mb:.1f} MB). Processing may be slow.")
     else:
-        st.success(f"File loaded: {file_size_mb:.1f} MB", icon="✅")
+        st.success(f"✅ File loaded: {file_size_mb:.1f} MB", icon="✅")
 
-    st.markdown(f"**Filename:** {uploaded_file.name}")
+    st.markdown(f"**Filename:** `{uploaded_file.name}`")
 
     password = st.text_input(
         "Enter the PDF password",
@@ -147,11 +254,10 @@ if uploaded_file is not None:
                 progress_text.success("PDF creation complete")
 
                 # ─── Filename logic & stats ───────────────────
-                base, ext = os.path.splitext(uploaded_file.name)
-                new_name = f"{base} - unlocked{ext}"
+                new_name = get_generated_filename(uploaded_file.name)
 
-                orig_mb = uploaded_file.size / 1_048_576
-                out_mb = len(output.getvalue()) / 1_048_576
+                orig_mb = format_file_size(uploaded_file.size)
+                out_mb = format_file_size(len(output.getvalue()))
                 pages = total_pages
 
                 c1, c2, c3, c4 = st.columns(4)
@@ -176,11 +282,11 @@ if uploaded_file is not None:
                         st.markdown("**First page preview**")
                         doc = fitz.open(stream=output.getvalue(), filetype="pdf")
                         if len(doc) >= 1:
-                            pix = doc[0].get_pixmap(dpi=120)
-                            st.image(pix.tobytes("png"), width=700)
+                            pix = doc[0].get_pixmap(dpi=DEFAULT_DPI)
+                            st.image(pix.tobytes("png"), width=PREVIEW_WIDTH)
                         doc.close()
-                    except Exception:
-                        st.caption("Preview could not be generated.")
+                    except Exception as e:
+                        st.caption(f"Preview could not be generated: {str(e)}")
                 else:
                     st.caption("Install PyMuPDF (`pip install pymupdf`) to see preview")
 
@@ -245,4 +351,80 @@ else:
     st.info("Upload a password-protected PDF file to start.", icon="📄")
 
 st.markdown("---")
-st.caption(f"PDF Unlocker • {time.strftime('%Y-%m')}")
+
+# ──── CONTACT FORM SECTION ──────────────────────────────────────────────────
+st.subheader("📬 Get in Touch")
+st.markdown("Have feedback, questions, or issues? We'd love to hear from you!")
+
+with st.form("contact_form", clear_on_submit=True):
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        contact_name = st.text_input(
+            "Your Name",
+            placeholder="John Doe",
+            max_chars=100
+        )
+    
+    with col2:
+        contact_email = st.text_input(
+            "Your Email",
+            placeholder="john@example.com",
+            max_chars=150
+        )
+    
+    contact_subject = st.selectbox(
+        "Subject",
+        [
+            "Bug Report",
+            "Feature Request",
+            "General Feedback",
+            "Technical Support",
+            "Other"
+        ],
+        index=2
+    )
+    
+    contact_message = st.text_area(
+        "Message",
+        placeholder="Tell us what's on your mind...",
+        height=120,
+        max_chars=1000
+    )
+    
+    submit_button = st.form_submit_button(
+        "✉️ Send Message",
+        use_container_width=True,
+        type="secondary"
+    )
+    
+    if submit_button:
+        # Validation
+        if not contact_name.strip():
+            st.error("❌ Please enter your name.")
+        elif not contact_email.strip():
+            st.error("❌ Please enter your email.")
+        elif not validate_email(contact_email):
+            st.error("❌ Please enter a valid email address.")
+        elif not contact_message.strip():
+            st.error("❌ Please enter a message.")
+        else:
+            # Save submission
+            if save_contact_submission(contact_name, contact_email, contact_subject, contact_message):
+                st.success("✅ Thank you! Your message has been sent successfully.")
+                st.balloons()
+            else:
+                st.error("❌ There was an error sending your message. Please try again.")
+
+st.markdown("---")
+
+# ──── FOOTER ────────────────────────────────────────────────────────────────
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.caption("🔐 **Privacy:** No data is stored on servers")
+with col2:
+    st.caption("⚖️ **Legal:** Use responsibly with owned files")
+with col3:
+    st.caption(f"📅 **Version:** {time.strftime('%Y-%m')}")
+
+st.caption("Built with ❤️ using Streamlit • PyPDF2 • PyMuPDF")
