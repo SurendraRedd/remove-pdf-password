@@ -665,30 +665,90 @@ if uploaded_file is not None:
 
             except Exception as e:
                 err_msg = str(e)
+                # Enhanced error display
+                error_html = """
+                <div style='text-align: center; padding: 30px;'>
+                    <div style='font-size: 48px; animation: float 3s ease-in-out infinite; display: inline-block;'>⚠️</div>
+                    <div style='margin-top: 15px; color: #ef4444; font-weight: bold; font-size: 18px;'>
+                        Error Processing PDF
+                    </div>
+                </div>
+                """
+                components.html(error_html, height=120)
+                
                 if "PyCryptodome is required" in err_msg or "PyCryptodome is required for AES algorithm" in err_msg:
                     processing_container.error("PDF uses AES encryption which requires PyCryptodome.")
-                    with st.expander("Install PyCryptodome"):
+                    with st.expander("🔧 Install PyCryptodome"):
                         st.markdown("Install the dependency and restart the app:")
                         st.code("pip install pycryptodome", language="bash")
-                    with st.expander("Error details"):
+                    with st.expander("📋 Error details"):
                         st.exception(e)
                 else:
                     processing_container.error("Could not process this PDF file.")
-                    with st.expander("Error details"):
+                    with st.expander("📋 Error details"):
                         st.exception(e)
 
 else:
-    st.info("Upload a password-protected PDF file to start.", icon="📄")
+    empty_state_html = """
+    <div style='text-align: center; padding: 50px 20px;'>
+        <div class='float-animation' style='font-size: 64px; display: inline-block;'>📁</div>
+        <div style='margin-top: 20px; color: #666; font-size: 18px; animation: fade-in 1s ease-out;'>
+            <strong>Ready to Unlock Your PDF?</strong>
+        </div>
+        <div style='margin-top: 10px; color: #999; animation: fade-in 1.5s ease-out;'>
+            Upload a password-protected PDF file to get started
+        </div>
+    </div>
+    """
+    components.html(empty_state_html, height=180)
 
+st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("---")
 
-# ──── FOOTER ────────────────────────────────────────────────────────────────
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.caption("🔐 **Privacy:** No data is stored on servers")
-with col2:
-    st.caption("⚖️ **Legal:** Use responsibly with owned files")
-with col3:
-    st.caption(f"📅 **Version:** {time.strftime('%Y-%m')}")
-
-st.caption("Built with ❤️ using Streamlit • PyPDF2 • PyMuPDF")
+# ──── ENHANCED FOOTER ──────────────────────────────────────────────────────
+footer_html = """
+<div style='text-align: center; padding: 30px 20px; margin-top: 20px;'>
+    <style>
+        .footer-content {
+            animation: fade-in 1s ease-out;
+        }
+        
+        .footer-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            margin: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            transition: transform 0.3s ease;
+        }
+        
+        .footer-badge:hover {
+            transform: scale(1.05);
+        }
+        
+        .footer-text {
+            color: #666;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+    </style>
+    
+    <div class='footer-content'>
+        <div style='margin: 10px 0;'>
+            <span class='footer-badge'>🔐 Privacy-First</span>
+            <span class='footer-badge'>⚡ Fast Processing</span>
+            <span class='footer-badge'>✨ Beautiful UI</span>
+        </div>
+        <div class='footer-text' style='margin-top: 20px;'>
+            Built with ❤️ using Streamlit • PyPDF2 • PyMuPDF
+        </div>
+        <div class='footer-text' style='margin-top: 10px; color: #999;'>
+            © 2024 PDF Unlocker • All files processed locally
+        </div>
+    </div>
+</div>
+"""
+components.html(footer_html, height=150)
