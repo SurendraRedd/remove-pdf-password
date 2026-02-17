@@ -8,6 +8,7 @@ import io
 import os
 import time
 import math
+import urllib.parse
 import streamlit.components.v1 as components
 
 # Optional: better preview
@@ -247,6 +248,158 @@ def get_generated_filename(original_name: str) -> str:
     """Generate clean output filename."""
     base, ext = os.path.splitext(original_name)
     return f"{base} - unlocked{ext}"
+
+def share_section():
+    """Display share buttons for social media and other platforms."""
+    app_url = "https://pdf-unlocker.streamlit.app"  # Update with your actual URL
+    share_message = "🔓 PDF Unlocker - Remove password protection from PDFs instantly! Check it out:"
+    
+    share_html = f"""
+    <div style='text-align: center; padding: 40px 20px; background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%); border-radius: 15px; margin: 30px 0;'>
+        <style>
+            .share-title {{
+                font-size: 22px;
+                font-weight: bold;
+                background: linear-gradient(90deg, #667eea, #764ba2, #0ea5a4);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                margin-bottom: 20px;
+                animation: fade-in 0.8s ease-out;
+            }}
+            
+            .share-container {{
+                display: flex;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 12px;
+                animation: fade-in 1s ease-out;
+            }}
+            
+            .share-btn {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                text-decoration: none;
+                font-size: 24px;
+                transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                animation: scale-pop 0.5s ease-out forwards;
+                opacity: 0;
+            }}
+            
+            .share-btn:nth-child(1) {{ animation-delay: 0.1s; }}
+            .share-btn:nth-child(2) {{ animation-delay: 0.2s; }}
+            .share-btn:nth-child(3) {{ animation-delay: 0.3s; }}
+            .share-btn:nth-child(4) {{ animation-delay: 0.4s; }}
+            .share-btn:nth-child(5) {{ animation-delay: 0.5s; }}
+            .share-btn:nth-child(6) {{ animation-delay: 0.6s; }}
+            
+            .share-btn:hover {{
+                transform: scale(1.2) rotate(5deg);
+                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            }}
+            
+            .twitter-btn {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }}
+            
+            .facebook-btn {{
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+            }}
+            
+            .linkedin-btn {{
+                background: linear-gradient(135deg, #0084ff 0%, #0066cc 100%);
+                color: white;
+            }}
+            
+            .whatsapp-btn {{
+                background: linear-gradient(135deg, #25d366 0%, #20ba5f 100%);
+                color: white;
+            }}
+            
+            .email-btn {{
+                background: linear-gradient(135deg, #ea4335 0%, #c5221f 100%);
+                color: white;
+            }}
+            
+            .copy-btn {{
+                background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                color: white;
+            }}
+            
+            .share-subtitle {{
+                color: #666;
+                font-size: 14px;
+                margin-top: 20px;
+                animation: fade-in 1.2s ease-out;
+            }}
+            
+            .share-label {{
+                display: block;
+                font-size: 11px;
+                margin-top: 8px;
+                color: #666;
+                font-weight: bold;
+                text-transform: uppercase;
+            }}
+        </style>
+        
+        <div class='share-title'>👥 Love This Tool? Share It!</div>
+        
+        <div class='share-container'>
+            <a href='https://twitter.com/intent/tweet?text={urllib.parse.quote(share_message)}&url={urllib.parse.quote(app_url)}' 
+               target='_blank' class='share-btn twitter-btn' title='Share on Twitter'>
+                𝕏
+            </a>
+            
+            <a href='https://www.facebook.com/sharer/sharer.php?u={urllib.parse.quote(app_url)}' 
+               target='_blank' class='share-btn facebook-btn' title='Share on Facebook'>
+                f
+            </a>
+            
+            <a href='https://www.linkedin.com/sharing/share-offsite/?url={urllib.parse.quote(app_url)}' 
+               target='_blank' class='share-btn linkedin-btn' title='Share on LinkedIn'>
+                in
+            </a>
+            
+            <a href='https://wa.me/?text={urllib.parse.quote(share_message + " " + app_url)}' 
+               target='_blank' class='share-btn whatsapp-btn' title='Share on WhatsApp'>
+                💬
+            </a>
+            
+            <a href='mailto:?subject=Check%20out%20PDF%20Unlocker&body={urllib.parse.quote(share_message + " " + app_url)}' 
+               class='share-btn email-btn' title='Share via Email'>
+                ✉️
+            </a>
+            
+            <button onclick='copyToClipboard(\"{app_url}\")' class='share-btn copy-btn' title='Copy Link'>
+                📋
+            </button>
+        </div>
+        
+        <div class='share-subtitle'>
+            ✨ Help others unlock their PDFs - Share this amazing tool today!
+        </div>
+    </div>
+    
+    <script>
+        function copyToClipboard(text) {{
+            navigator.clipboard.writeText(text).then(() => {{
+                alert('Link copied to clipboard! 📋');
+            }}).catch(() => {{
+                console.log('Copy failed - fallback');
+            }});
+        }}
+    </script>
+    """
+    
+    components.html(share_html, height=220)
 
 def animated_title():
     """Display animated title with gradient effect."""
@@ -703,6 +856,11 @@ else:
     components.html(empty_state_html, height=180)
 
 st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("---")
+
+# ──── SHARE SECTION ────────────────────────────────────────────────────────
+share_section()
+
 st.markdown("---")
 
 # ──── ENHANCED FOOTER ──────────────────────────────────────────────────────
